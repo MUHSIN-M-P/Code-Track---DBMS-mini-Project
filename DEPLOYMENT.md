@@ -27,6 +27,19 @@ Notes:
 
 - Use Railway's PostgreSQL reference variable for `DATABASE_URL`.
 - After first deployment, replace `NEXTAUTH_URL` with your final custom domain if you attach one.
+- If build logs show Node 18, add `NIXPACKS_NODE_VERSION=20` in the web service variables and redeploy.
+
+How to set `DATABASE_URL` correctly:
+
+- Do not paste a manual URL from GitHub.
+- In Railway variable value, click **Add Reference** and select the PostgreSQL service `DATABASE_URL`.
+
+How to get `NEXTAUTH_URL`:
+
+- Open your Railway web service.
+- Go to **Settings -> Networking**.
+- Copy the generated public domain (for example, `your-app.up.railway.app`).
+- Set `NEXTAUTH_URL` to `https://<that-domain>`.
 
 ## 4. Build and Start Commands
 

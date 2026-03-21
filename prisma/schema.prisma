@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  password      String
+  role          String   @default("USER") // USER or ADMIN
+  preferredLang String   @default("cpp")
+  joinedAt      DateTime @default(now())
+
+  codeforcesHandle String?
+  leetcodeHandle   String?
+  cfRating         Int?
+  cfMaxRating      Int?
+
+  submissions          Submission[]
+  contestRegistrations ContestRegistration[]
+  streak               Streak?
+  createdContests      Contest[]
+
+  @@map("users")
+}
+
+model Topic {
+  id       String         @id @default(cuid())
+  name     String         @unique
+  slug     String         @unique
+  problems ProblemTopic[]
+
+  @@map("topics")
+}
+
+model Problem {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  description String
+  difficulty  String   @default("EASY") // EASY, MEDIUM, HARD
+  createdAt   DateTime @default(now())
+
+  topics          ProblemTopic[]
+  submissions     Submission[]
+  contestProblems ContestProblem[]
+
+  @@map("problems")
+}
+
+model ProblemTopic {
+  id        String  @id @default(cuid())
+  problemId String
+  topicId   String
+  problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  topic     Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([problemId, topicId])
+  @@map("problem_topics")
+}
+
+model Submission {
+  id          String   @id @default(cuid())
+  userId      String
+  problemId   String
+  language    String
+  verdict     String // ACCEPTED, WRONG_ANSWER, TLE, RUNTIME_ERROR, COMPILATION_ERROR
+  submittedAt DateTime @default(now())
+  contestId   String?
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  contest Contest? @relation(fields: [contestId], references: [id], onDelete: SetNull)
+
+  @@map("submissions")
+}
+
+model Contest {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  startTime   DateTime
+  endTime     DateTime
+  duration    Int // in minutes
+  createdById String
+
+  createdBy     User                 @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  problems      ContestProblem[]
+  registrations ContestRegistration[]
+  submissions   Submission[]
+
+  @@map("contests")
+}
+
+model ContestProblem {
+  id        String  @id @default(cuid())
+  contestId String
+  problemId String
+  order     Int
+
+  contest Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@unique([contestId, problemId])
+  @@map("contest_problems")
+}
+
+model ContestRegistration {
+  id           String   @id @default(cuid())
+  userId       String
+  contestId    String
+  registeredAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contest Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contestId])
+  @@map("contest_registrations")
+}
+
+model Streak {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  currentStreak  Int      @default(0)
+  longestStreak  Int      @default(0)
+  lastActiveDate DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("streaks")
+}
+
+model PlatformProblem {
+  id         String   @id @default(cuid())
+  title      String
+  platform   String   // CODEFORCES or LEETCODE
+  platformId String   // e.g., "1A", "two-sum"
+  difficulty String   @default("MEDIUM") // EASY, MEDIUM, HARD
+  url        String?  // Optional direct URL to problem
+  createdAt  DateTime @default(now())
+  createdBy  String?  // Admin who added this suggestion
+
+  @@unique([platform, platformId])
+  @@map("platform_problems")
+}

@@ -1,0 +1,49 @@
+
+> codetrack@0.1.0 build
+> next build
+
+Γû▓ Next.js 16.1.6 (Turbopack)
+- Environments: .env
+
+  Creating an optimized production build ...
+Γ£ô Compiled successfully in 1766.5ms
+  Running TypeScript ...
+  Collecting page data using 15 workers ...
+  Generating static pages using 15 workers (0/19) ...
+  Generating static pages using 15 workers (4/19) 
+  Generating static pages using 15 workers (9/19) 
+  Generating static pages using 15 workers (14/19) 
+Γ£ô Generating static pages using 15 workers (19/19) in 525.0ms
+  Finalizing page optimization ...
+
+Route (app)
+Γöî Γùï /
+Γö£ Γùï /_not-found
+Γö£ Γùï /admin
+Γö£ ╞Æ /api/auth/[...nextauth]
+Γö£ ╞Æ /api/auth/register
+Γö£ ╞Æ /api/contests
+Γö£ ╞Æ /api/contests/[id]
+Γö£ ╞Æ /api/contests/[id]/leaderboard
+Γö£ ╞Æ /api/contests/[id]/register
+Γö£ ╞Æ /api/leaderboard
+Γö£ ╞Æ /api/problems
+Γö£ ╞Æ /api/problems/[id]
+Γö£ ╞Æ /api/stats
+Γö£ ╞Æ /api/submissions
+Γö£ ╞Æ /api/topics
+Γö£ ╞Æ /api/users/[id]
+Γö£ Γùï /contests
+Γö£ ╞Æ /contests/[id]
+Γö£ Γùï /dashboard
+Γö£ Γùï /leaderboard
+Γö£ Γùï /login
+Γö£ Γùï /problems
+Γö£ ╞Æ /problems/[id]
+Γö£ Γùï /profile
+Γöö Γùï /register
+
+
+Γùï  (Static)   prerendered as static content
+╞Æ  (Dynamic)  server-rendered on demand
+

@@ -1,45 +1,79 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { getCFUserInfo } from "@/lib/codeforces";
-import { getLCStats } from "@/lib/leetcode";
+import { Verdict, Role } from "@prisma/client";
 
 export async function GET() {
-  const users = await prisma.user.findMany({
-    where: { role: "USER" },
-    select: { id: true, name: true, codeforcesHandle: true, leetcodeHandle: true },
-  });
+    const users = await prisma.user.findMany({
+        where: { role: Role.user, isActive: true },
+        select: {
+            id: true,
+            username: true,
+            joinDate: true,
+            currentStreak: true,
+            longestStreak: true,
+        },
+        orderBy: { joinDate: "asc" },
+    });
 
-  // Fetch updated external stats on the fly for the leaderboard
-  const leaderboard = await Promise.all(
-    users.map(async (u: any) => {
-      let cfRating = 0;
-      let totalSolved = 0;
+    const userIds = users.map((u) => u.id);
 
-      if (u.codeforcesHandle) {
-        const cfInfo = await getCFUserInfo(u.codeforcesHandle);
-        if (cfInfo) cfRating = cfInfo.rating || 0;
-      }
+    const submissionsAgg = await prisma.submission.groupBy({
+        by: ["userId", "verdict"],
+        where: { userId: { in: userIds } },
+        _count: { _all: true },
+    });
 
-      if (u.leetcodeHandle) {
-        const lcStats = await getLCStats(u.leetcodeHandle);
-        if (lcStats) totalSolved += lcStats.totalSolved;
-      }
+    const solvedAgg = await prisma.userProblemStatus.groupBy({
+        by: ["userId"],
+        where: { userId: { in: userIds }, isSolved: true },
+        _count: { _all: true },
+    });
 
-      return {
-        id: u.id,
-        name: u.name,
-        codeforcesHandle: u.codeforcesHandle,
-        cfRating,
-        totalSolved,
-      };
-    })
-  );
+    const totalByUser = new Map<string, number>();
+    const acceptedByUser = new Map<string, number>();
+    for (const row of submissionsAgg) {
+        totalByUser.set(
+            row.userId,
+            (totalByUser.get(row.userId) || 0) + row._count._all,
+        );
+        if (row.verdict === Verdict.Accepted) {
+            acceptedByUser.set(
+                row.userId,
+                (acceptedByUser.get(row.userId) || 0) + row._count._all,
+            );
+        }
+    }
 
-  // Sort by CF rating descending, then total solved
-  leaderboard.sort((a, b) => {
-    if (b.cfRating !== a.cfRating) return b.cfRating - a.cfRating;
-    return b.totalSolved - a.totalSolved;
-  });
+    const solvedByUser = new Map(
+        solvedAgg.map((r) => [r.userId, r._count._all] as const),
+    );
 
-  return NextResponse.json(leaderboard);
+    const leaderboard = users
+        .map((u) => {
+            const totalSubmissions = totalByUser.get(u.id) || 0;
+            const acceptedSubmissions = acceptedByUser.get(u.id) || 0;
+            const acceptanceRate =
+                totalSubmissions > 0
+                    ? Math.round((acceptedSubmissions / totalSubmissions) * 100)
+                    : 0;
+
+            return {
+                id: u.id,
+                username: u.username,
+                totalSolved: solvedByUser.get(u.id) || 0,
+                totalSubmissions,
+                acceptanceRate,
+                currentStreak: u.currentStreak,
+                longestStreak: u.longestStreak,
+            };
+        })
+        .sort((a, b) => {
+            if (b.totalSolved !== a.totalSolved)
+                return b.totalSolved - a.totalSolved;
+            if (b.acceptanceRate !== a.acceptanceRate)
+                return b.acceptanceRate - a.acceptanceRate;
+            return b.longestStreak - a.longestStreak;
+        });
+
+    return NextResponse.json(leaderboard);
 }

@@ -1,47 +1,84 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { Difficulty } from "@prisma/client";
+
+function normalizeDifficulty(input: string | null): Difficulty | undefined {
+    if (!input) return undefined;
+    const v = input.trim();
+    if (v === "Easy" || v === "EASY") return Difficulty.Easy;
+    if (v === "Medium" || v === "MEDIUM") return Difficulty.Medium;
+    if (v === "Hard" || v === "HARD") return Difficulty.Hard;
+    return undefined;
+}
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const platform = searchParams.get("platform");
-  const difficulty = searchParams.get("difficulty");
-  const search = searchParams.get("search");
+    const { searchParams } = new URL(req.url);
+    const difficulty = searchParams.get("difficulty");
+    const topicId = searchParams.get("topicId");
+    const search = searchParams.get("search");
 
-  const where: Record<string, unknown> = {};
-  if (platform) where.platform = platform;
-  if (difficulty) where.difficulty = difficulty;
-  if (search) where.title = { contains: search, mode: 'insensitive' };
+    const where: Record<string, unknown> = {};
+    where.isVisible = true;
+    const normalizedDifficulty = normalizeDifficulty(difficulty);
+    if (normalizedDifficulty) where.difficulty = normalizedDifficulty;
+    if (search) where.title = { contains: search, mode: "insensitive" };
+    if (topicId) where.topics = { some: { topicId } };
 
-  try {
-    const problems = await prisma.platformProblem.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-    });
+    try {
+        const problems = await prisma.problem.findMany({
+            where,
+            include: { topics: { include: { topic: true } } },
+            orderBy: { createdAt: "desc" },
+        });
 
-    return NextResponse.json(problems);
-  } catch (error) {
-    console.error("Error fetching platform problems:", error);
-    return NextResponse.json([], { status: 500 });
-  }
+        return NextResponse.json(problems);
+    } catch (error) {
+        console.error("Error fetching problems:", error);
+        return NextResponse.json([], { status: 500 });
+    }
 }
 
 export async function POST(req: Request) {
-  try {
-    const { title, platform, platformId, difficulty, url } = await req.json();
+    try {
+        const { title, description, difficulty, topicIds, createdById } =
+            await req.json();
 
-    const problem = await prisma.platformProblem.create({
-      data: {
-        title,
-        platform,
-        platformId,
-        difficulty: difficulty || "MEDIUM",
-        url,
-      },
-    });
+        if (!title || !description || !difficulty) {
+            return NextResponse.json(
+                { error: "Missing fields" },
+                { status: 400 },
+            );
+        }
 
-    return NextResponse.json(problem, { status: 201 });
-  } catch (error) {
-    console.error("Error creating platform problem:", error);
-    return NextResponse.json({ error: "Failed to create problem" }, { status: 500 });
-  }
+        const normalizedDifficulty = normalizeDifficulty(String(difficulty));
+        if (!normalizedDifficulty) {
+            return NextResponse.json(
+                { error: "Invalid difficulty" },
+                { status: 400 },
+            );
+        }
+
+        const problem = await prisma.problem.create({
+            data: {
+                title,
+                description,
+                difficulty: normalizedDifficulty,
+                createdById: createdById || null,
+                topics: {
+                    create: (topicIds || []).map((topicId: string) => ({
+                        topicId,
+                    })),
+                },
+            },
+            include: { topics: { include: { topic: true } } },
+        });
+
+        return NextResponse.json(problem, { status: 201 });
+    } catch (error) {
+        console.error("Error creating problem:", error);
+        return NextResponse.json(
+            { error: "Failed to create problem" },
+            { status: 500 },
+        );
+    }
 }

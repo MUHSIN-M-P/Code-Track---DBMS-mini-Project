@@ -7,60 +7,97 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  user
+  admin
+
+  @@map("role")
+}
+
+enum Difficulty {
+  Easy
+  Medium
+  Hard
+
+  @@map("difficulty")
+}
+
+enum Verdict {
+  Accepted
+  WrongAnswer        @map("Wrong Answer")
+  TimeLimitExceeded  @map("Time Limit Exceeded")
+  RuntimeError       @map("Runtime Error")
+  CompilationError   @map("Compilation Error")
+
+  @@map("verdict")
+}
+
 model User {
   id            String   @id @default(cuid())
-  name          String
+  username      String   @unique
   email         String   @unique
-  password      String
-  role          String   @default("USER") // USER or ADMIN
-  preferredLang String   @default("cpp")
-  joinedAt      DateTime @default(now())
+  passwordHash  String
+  role          Role     @default(user)
+  preferredLang String?
+  joinDate      DateTime @default(now())
 
-  codeforcesHandle String?
-  leetcodeHandle   String?
-  cfRating         Int?
-  cfMaxRating      Int?
+  // Streak fields (tracked on user record)
+  currentStreak  Int     @default(0)
+  longestStreak  Int     @default(0)
+  lastActiveDate DateTime?
+  isActive       Boolean @default(true)
 
   submissions          Submission[]
   contestRegistrations ContestRegistration[]
-  streak               Streak?
   createdContests      Contest[]
+  createdProblems      Problem[]
+  problemStatuses      UserProblemStatus[]
+  topicPerformances    TopicPerformance[]
+  leaderboardEntries   LeaderboardEntry[]
+
+  @@index([email])
+  @@index([username])
 
   @@map("users")
 }
 
 model Topic {
-  id       String         @id @default(cuid())
-  name     String         @unique
-  slug     String         @unique
+  id       String             @id @default(cuid())
+  name     String             @unique
   problems ProblemTopic[]
+  performances TopicPerformance[]
 
   @@map("topics")
 }
 
 model Problem {
-  id          String   @id @default(cuid())
-  title       String
-  slug        String   @unique
-  description String
-  difficulty  String   @default("EASY") // EASY, MEDIUM, HARD
-  createdAt   DateTime @default(now())
+  id               String   @id @default(cuid())
+  title            String   @unique
+  description      String
+  difficulty       Difficulty @default(Easy)
+  totalSubmissions Int      @default(0)
+  totalAccepted    Int      @default(0)
+  isVisible        Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  createdById      String?
 
+  createdBy       User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
   topics          ProblemTopic[]
   submissions     Submission[]
   contestProblems ContestProblem[]
+  userStatuses    UserProblemStatus[]
 
   @@map("problems")
 }
 
 model ProblemTopic {
-  id        String  @id @default(cuid())
   problemId String
   topicId   String
   problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
   topic     Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
 
-  @@unique([problemId, topicId])
+  @@id([problemId, topicId])
+  @@index([topicId])
   @@map("problem_topics")
 }
 
@@ -69,49 +106,55 @@ model Submission {
   userId      String
   problemId   String
   language    String
-  verdict     String // ACCEPTED, WRONG_ANSWER, TLE, RUNTIME_ERROR, COMPILATION_ERROR
+  verdict     Verdict
   submittedAt DateTime @default(now())
+  executionMs Int?
   contestId   String?
 
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  problem Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  problem Problem  @relation(fields: [problemId], references: [id], onDelete: Restrict)
   contest Contest? @relation(fields: [contestId], references: [id], onDelete: SetNull)
+
+  @@index([userId, submittedAt])
+  @@index([problemId, verdict])
+  @@index([contestId, userId])
 
   @@map("submissions")
 }
 
 model Contest {
   id          String   @id @default(cuid())
-  title       String
-  description String
+  title       String   @unique
   startTime   DateTime
   endTime     DateTime
-  duration    Int // in minutes
+  isActive    Boolean  @default(false)
+  createdAt   DateTime @default(now())
   createdById String
 
-  createdBy     User                 @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  createdBy     User                 @relation(fields: [createdById], references: [id], onDelete: Restrict)
   problems      ContestProblem[]
   registrations ContestRegistration[]
   submissions   Submission[]
+  leaderboard   LeaderboardEntry[]
+
+  @@index([startTime, endTime])
 
   @@map("contests")
 }
 
 model ContestProblem {
-  id        String  @id @default(cuid())
   contestId String
   problemId String
   order     Int
 
   contest Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Restrict)
 
-  @@unique([contestId, problemId])
+  @@id([contestId, problemId])
   @@map("contest_problems")
 }
 
 model ContestRegistration {
-  id           String   @id @default(cuid())
   userId       String
   contestId    String
   registeredAt DateTime @default(now())
@@ -119,32 +162,53 @@ model ContestRegistration {
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   contest Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, contestId])
+  @@id([userId, contestId])
   @@map("contest_registrations")
 }
 
-model Streak {
-  id             String   @id @default(cuid())
-  userId         String   @unique
-  currentStreak  Int      @default(0)
-  longestStreak  Int      @default(0)
-  lastActiveDate DateTime?
+// Tracks solved status per user per problem (SRS: user_problem_status)
+model UserProblemStatus {
+  userId          String
+  problemId       String
+  isSolved        Boolean   @default(false)
+  firstAcceptedAt DateTime?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Restrict)
 
-  @@map("streaks")
+  @@id([userId, problemId])
+  @@index([userId])
+  @@map("user_problem_status")
 }
 
-model PlatformProblem {
-  id         String   @id @default(cuid())
-  title      String
-  platform   String   // CODEFORCES or LEETCODE
-  platformId String   // e.g., "1A", "two-sum"
-  difficulty String   @default("MEDIUM") // EASY, MEDIUM, HARD
-  url        String?  // Optional direct URL to problem
-  createdAt  DateTime @default(now())
-  createdBy  String?  // Admin who added this suggestion
+// Caches per-user topic statistics (SRS: topic_performance)
+model TopicPerformance {
+  userId   String
+  topicId  String
+  attempted Int   @default(0)
+  solved    Int   @default(0)
 
-  @@unique([platform, platformId])
-  @@map("platform_problems")
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([userId, topicId])
+  @@index([userId])
+  @@map("topic_performance")
+}
+
+// ICPC-style contest leaderboard (SRS: leaderboard_entries)
+model LeaderboardEntry {
+  contestId      String
+  userId         String
+  problemsSolved Int     @default(0)
+  penaltyTime    Int     @default(0) // total penalty in minutes
+  rank           Int?
+  isFinal        Boolean @default(false)
+
+  contest Contest @relation(fields: [contestId], references: [id], onDelete: Restrict)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([contestId, userId])
+  @@index([contestId, rank])
+  @@map("leaderboard_entries")
 }

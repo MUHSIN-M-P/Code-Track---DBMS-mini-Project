@@ -33,36 +33,16 @@ export default function Navbar() {
                         >
                             Dashboard
                         </Link>
-                        <Link
-                            href="/problems"
-                            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                                pathname === "/problems"
-                                    ? "bg-blue-50 text-blue-600"
-                                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                            }`}
-                        >
-                            Problems
-                        </Link>
-                        <Link
-                            href="/leaderboard"
-                            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                                pathname === "/leaderboard"
-                                    ? "bg-blue-50 text-blue-600"
-                                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                            }`}
-                        >
-                            College Rank
-                        </Link>
-                        {(session?.user as any)?.role === "ADMIN" && (
+                        {(session?.user as any)?.role === "admin" && (
                             <Link
-                                href="/admin"
+                                href="/manage"
                                 className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                                    pathname === "/admin"
+                                    pathname === "/manage"
                                         ? "bg-blue-50 text-blue-600"
                                         : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                                 }`}
                             >
-                                Admin Console
+                                Manage
                             </Link>
                         )}
                     </div>

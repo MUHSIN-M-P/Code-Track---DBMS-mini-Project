@@ -33,10 +33,9 @@ export default function HomePage() {
                     </h1>
 
                     <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto mb-8 leading-relaxed">
-                        The all-in-one competitive programming platform. Connect
-                        Codeforces & LeetCode, analyze your weak topics, view
-                        real-time college rankings, and accelerate your
-                        competitive programming journey.
+                        The all-in-one competitive programming tracker. Solve
+                        curated problems, join contests, build streaks, and
+                        measure topic-wise progress with a college leaderboard.
                     </p>
 
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -76,11 +75,7 @@ export default function HomePage() {
                             size={28}
                             className="mx-auto text-purple-600 mb-3"
                         />
-                        <div
-                            className="text-3xl font-extrabold text-gray
-
--900 mb-1"
-                        >
+                        <div className="text-3xl font-extrabold text-gray-900 mb-1">
                             2.5K
                         </div>
                         <div className="text-sm font-medium text-gray-500 uppercase tracking-wider">
@@ -124,8 +119,8 @@ export default function HomePage() {
                         </span>
                     </h2>
                     <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                        CodeTrack aggregates your coding persona into one
-                        powerful, unified dashboard.
+                        CodeTrack keeps your practice, contests, and progress
+                        analytics in one place.
                     </p>
                 </div>
 
@@ -139,10 +134,9 @@ export default function HomePage() {
                                 Unified Deep Analytics
                             </h3>
                             <p className="text-gray-600 leading-relaxed">
-                                Connect your Codeforces and LeetCode accounts to
-                                visualize per-topic performance, global
-                                acceptance rates, and submission history in one
-                                place.
+                                Visualize your topic performance, acceptance
+                                rate, and recent submissions from your CodeTrack
+                                activity.
                             </p>
                         </CardContent>
                     </Card>
@@ -153,13 +147,12 @@ export default function HomePage() {
                                 <Target size={28} />
                             </div>
                             <h3 className="text-xl font-bold text-gray-900 mb-2">
-                                AI Weak Topic Detection
+                                Topic Focus
                             </h3>
                             <p className="text-gray-600 leading-relaxed">
-                                Our engine analyzes your past Codeforces
-                                submissions to highlight weak areas (like DP or
-                                Game Theory) where your accuracy drops below
-                                threshold.
+                                Identify topics you’ve attempted most and where
+                                you can improve by tracking solved vs attempted
+                                over time.
                             </p>
                         </CardContent>
                     </Card>
@@ -170,13 +163,12 @@ export default function HomePage() {
                                 <Trophy size={28} />
                             </div>
                             <h3 className="text-xl font-bold text-gray-900 mb-2">
-                                Global Leaderboards
+                                College Leaderboard
                             </h3>
                             <p className="text-gray-600 leading-relaxed">
                                 See where you stand among your peers. Dynamic
-                                leaderboards rank users by Codeforces ELO
-                                ratings and total aggregate problems solved
-                                across all platforms.
+                                leaderboards rank users by problems solved and
+                                acceptance rate.
                             </p>
                         </CardContent>
                     </Card>

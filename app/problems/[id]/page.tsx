@@ -42,8 +42,10 @@ export default function ProblemDetailPage() {
     const [problem, setProblem] = useState<Problem | null>(null);
     const [language, setLanguage] = useState("cpp");
     const [verdict, setVerdict] = useState("Accepted");
+    const [code, setCode] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [message, setMessage] = useState("");
+    const [executionOutput, setExecutionOutput] = useState("");
 
     useEffect(() => {
         fetch(`/api/problems/${id}`)
@@ -77,6 +79,42 @@ export default function ProblemDetailPage() {
         }
         setSubmitting(true);
         setMessage("");
+        setExecutionOutput("");
+
+        let finalVerdict = verdict;
+
+        // If user typed code, execute it first!
+        if (code.trim()) {
+            setMessage("⚡ Running tests on Piston Engine...");
+            try {
+                const execRes = await fetch("/api/execute", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ problemId: id, language, code }),
+                });
+                const execData = await execRes.json();
+                
+                if (execRes.ok && execData.verdict) {
+                    finalVerdict = execData.verdict;
+                    if (execData.output && execData.output !== "All test cases passed.") {
+                        setExecutionOutput(execData.output);
+                    }
+                    if (finalVerdict === "Accepted") {
+                        setMessage(`✅ Executed and Received: ${finalVerdict}`);
+                    } else {
+                        setMessage(`❌ Executed and Received: ${finalVerdict}`);
+                    }
+                } else {
+                    setMessage(`❌ Execution Error: ${execData.error || "Piston API failed"}`);
+                    setSubmitting(false);
+                    return;
+                }
+            } catch (err) {
+                setMessage("❌ Failed to reach Execution Engine.");
+                setSubmitting(false);
+                return;
+            }
+        }
 
         const res = await fetch("/api/submissions", {
             method: "POST",
@@ -85,21 +123,20 @@ export default function ProblemDetailPage() {
                 userId,
                 problemId: id,
                 language,
-                verdict,
+                verdict: finalVerdict,
                 contestId,
             }),
         });
 
         if (res.ok) {
-            setMessage("✅ Submission recorded!");
-            // Refresh problem data
+            if (!code.trim()) setMessage("✅ Manual Submission recorded!");
             const updated = await fetch(`/api/problems/${id}`).then((r) =>
                 r.json(),
             );
             setProblem(updated);
         } else {
             const errData = await res.json().catch(() => ({}));
-            setMessage(`❌ ${errData.error || "Submission failed"}`);
+            setMessage(`❌ Database Error: ${errData.error || "Submission failed"}`);
         }
         setSubmitting(false);
     };
@@ -213,19 +250,89 @@ export default function ProblemDetailPage() {
             </div>
 
             <div className="problem-detail">
-                {/* Problem Description */}
-                <div className="problem-content">
-                    <div
-                        style={{ whiteSpace: "pre-wrap" }}
-                        dangerouslySetInnerHTML={{
-                            __html: problem.description
-                                .replace(
-                                    /\*\*(.*?)\*\*/g,
-                                    "<strong>$1</strong>",
-                                )
-                                .replace(/\n/g, "<br/>"),
-                        }}
-                    />
+                {/* Left Pane: Description & Code Editor */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                    {/* Problem Description */}
+                    <div className="problem-content">
+                        <div
+                            style={{ whiteSpace: "pre-wrap" }}
+                            dangerouslySetInnerHTML={{
+                                __html: problem.description
+                                    .replace(
+                                        /\*\*(.*?)\*\*/g,
+                                        "<strong>$1</strong>",
+                                    )
+                                    .replace(/\n/g, "<br/>"),
+                            }}
+                        />
+                    </div>
+
+                    {/* Submit Solution Options moved to right side */}
+
+                    {session && (
+                        <div className="card">
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                                <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>
+                                    ✨ Editor
+                                </h3>
+                                
+                                <select
+                                    className="form-input"
+                                    style={{ width: "auto", padding: "4px 10px", fontSize: 13, height: "30px" }}
+                                    value={language}
+                                    onChange={(e) =>
+                                        setLanguage(e.target.value)
+                                    }
+                                >
+                                    <option value="cpp">C++</option>
+                                    <option value="python">Python</option>
+                                    <option value="java">Java</option>
+                                    <option value="javascript">JavaScript</option>
+                                    <option value="c">C</option>
+                                </select>
+                            </div>
+                            
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                <textarea
+                                    className="form-input"
+                                    style={{ 
+                                        width: "100%", 
+                                        minHeight: "400px",
+                                        fontFamily: "monospace",
+                                        fontSize: 14,
+                                        backgroundColor: "#1e1e1e",
+                                        color: "#d4d4d4",
+                                        padding: "16px",
+                                        borderRadius: "8px",
+                                        border: "1px solid #333"
+                                    }}
+                                    placeholder="Write your code here...&#10;(Leave empty to use manual verdict on the right instead)"
+                                    value={code}
+                                    onChange={(e) => setCode(e.target.value)}
+                                    spellCheck={false}
+                                />
+                            </div>
+                            
+                            {/* Execution Output directly below Editor */}
+                            {executionOutput && (
+                                <div style={{
+                                    marginTop: 16,
+                                    padding: 16,
+                                    backgroundColor: "#1e1e1e",
+                                    borderLeft: "4px solid #ef4444",
+                                    borderRadius: "8px",
+                                    fontFamily: "monospace",
+                                    fontSize: 13,
+                                    color: "#ff8080",
+                                    whiteSpace: "pre-wrap",
+                                    maxHeight: "250px",
+                                    overflowY: "auto"
+                                }}>
+                                    {executionOutput}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* Sidebar */}
@@ -314,7 +421,8 @@ export default function ProblemDetailPage() {
                         </div>
                     </div>
 
-                    {/* Submit Solution */}
+
+                    {/* Action Controls Moved Here */}
                     {session && (
                         <div className="card">
                             <h3
@@ -324,50 +432,27 @@ export default function ProblemDetailPage() {
                                     marginBottom: 16,
                                 }}
                             >
-                                🚀 Submit Solution
+                                🚀 Actions
                             </h3>
-                            <div className="form-group">
-                                <label className="form-label">Language</label>
-                                <select
-                                    className="form-input"
-                                    style={{ width: "100%" }}
-                                    value={language}
-                                    onChange={(e) =>
-                                        setLanguage(e.target.value)
-                                    }
-                                >
-                                    <option value="cpp">C++</option>
-                                    <option value="python">Python</option>
-                                    <option value="java">Java</option>
-                                    <option value="javascript">
-                                        JavaScript
-                                    </option>
-                                    <option value="c">C</option>
-                                </select>
-                            </div>
-                            <div className="form-group">
-                                <label className="form-label">Verdict</label>
-                                <select
-                                    className="form-input"
-                                    style={{ width: "100%" }}
-                                    value={verdict}
-                                    onChange={(e) => setVerdict(e.target.value)}
-                                >
-                                    <option value="Accepted">Accepted</option>
-                                    <option value="Wrong Answer">
-                                        Wrong Answer
-                                    </option>
-                                    <option value="Time Limit Exceeded">
-                                        Time Limit Exceeded
-                                    </option>
-                                    <option value="Runtime Error">
-                                        Runtime Error
-                                    </option>
-                                    <option value="Compilation Error">
-                                        Compilation Error
-                                    </option>
-                                </select>
-                            </div>
+                            
+                            {!code.trim() && (
+                                <div className="form-group" style={{ marginBottom: 16 }}>
+                                    <label className="form-label">Manual Match (Fallback)</label>
+                                    <select
+                                        className="form-input"
+                                        style={{ width: "100%" }}
+                                        value={verdict}
+                                        onChange={(e) => setVerdict(e.target.value)}
+                                    >
+                                        <option value="Accepted">Accepted</option>
+                                        <option value="Wrong Answer">Wrong Answer</option>
+                                        <option value="Time Limit Exceeded">Time Limit Exceeded</option>
+                                        <option value="Runtime Error">Runtime Error</option>
+                                        <option value="Compilation Error">Compilation Error</option>
+                                    </select>
+                                </div>
+                            )}
+                            
                             <button
                                 className="btn btn-primary"
                                 style={{ width: "100%" }}
@@ -376,22 +461,27 @@ export default function ProblemDetailPage() {
                             >
                                 <Send size={16} />
                                 {submitting
-                                    ? "Submitting..."
-                                    : "Record Submission"}
+                                    ? "Processing..."
+                                    : code.trim() ? "Run & Evaluate" : "Force Submission"}
                             </button>
+                            
                             {message && (
-                                <p
+                                <div
                                     style={{
                                         marginTop: 12,
+                                        padding: 10,
+                                        backgroundColor: message.includes("✅") ? "rgba(34, 197, 94, 0.1)" : "rgba(239, 68, 68, 0.1)",
+                                        borderRadius: 6,
                                         fontSize: 13,
                                         textAlign: "center",
-                                        color: message.startsWith("✅")
+                                        fontWeight: 600,
+                                        color: message.includes("✅")
                                             ? "var(--accent-green)"
-                                            : "var(--accent-red)",
+                                            : message.includes("⚡") ? "#3b82f6" : "var(--accent-red)",
                                     }}
                                 >
                                     {message}
-                                </p>
+                                </div>
                             )}
                         </div>
                     )}

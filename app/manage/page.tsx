@@ -178,7 +178,7 @@ export default function ManagePage() {
         const res = await fetch("/api/topics", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: newTopicName }),
+            body: JSON.stringify({ name: newTopicName.trim() }),
         });
         if (res.ok) {
             setNewTopicName("");
@@ -187,7 +187,8 @@ export default function ManagePage() {
                 .then(setAvailableTopics)
                 .catch(() => {});
         } else {
-            alert("Failed to create topic");
+            const data = await res.json().catch(() => ({}));
+            alert(data.error || "Failed to create topic");
         }
     };
 
@@ -505,13 +506,22 @@ export default function ManagePage() {
                             <CardHeader className="flex flex-row justify-between items-center bg-gray-50 border-b border-gray-200">
                                 <CardTitle>Manage Topics</CardTitle>
                                 <div className="flex items-center gap-2">
-                                    <Input
+                                    <input
+                                        type="text"
                                         placeholder="New topic name..."
                                         value={newTopicName}
                                         onChange={(e) =>
                                             setNewTopicName(e.target.value)
                                         }
-                                        className="h-8 max-w-[200px]"
+                                        style={{
+                                            height: "32px",
+                                            padding: "0 10px",
+                                            border: "1px solid #d1d5db",
+                                            borderRadius: "6px",
+                                            fontSize: "13px",
+                                            outline: "none",
+                                            width: "200px",
+                                        }}
                                         onKeyDown={(e) =>
                                             e.key === "Enter" && createTopic()
                                         }

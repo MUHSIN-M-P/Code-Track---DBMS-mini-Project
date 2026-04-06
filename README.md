@@ -1,60 +1,72 @@
-# 🚀 CodeTrack - The Ultimate Hub For Code Athletes
+# CodeTrack — DBMS Mini Project (Next.js + PostgreSQL)
 
-Welcome to **CodeTrack**, a full-stack competitive programming and progress-tracking platform designed for dedicated code athletes!
-
-CodeTrack acts as an aggregated, unified dashboard where users can monitor their performance across different platforms (such as [Codeforces](https://codeforces.com/) and [LeetCode](https://leetcode.com/)), track their daily submission streaks, identify weak algorithm topics, and compete on global/college-wide leaderboards in real-time. This project also serves as a comprehensive Database Management System (DBMS) mini-project.
-
----
-
-## 🎯 Core Platform Objectives
-
-1. **Unify Profiles**: Connect multiple competitive programming accounts to track aggregate progress automatically.
-2. **Identify Weaknesses**: Use an internal engine to spot topics where accuracy falls below average (e.g., Dynamic Programming, Graph Theory).
-3. **Foster Competition**: Create localized and global leaderboards to gamify problem-solving.
-4. **Host Contests**: Allow designated users or admins to host internal coding contests with selected problem sets.
+CodeTrack is a full-stack coding practice + contest platform built specifically as a **DBMS mini-project**.
+The goal is not only a working web app, but a database design that demonstrates **normalization, constraints, indexes, transactions, and advanced analytics queries**.
 
 ---
 
-## ✨ Key Features
+## Project Goals (DBMS Focus)
 
-- 🔗 **Deep Analytics Integration**: Seamlessly maps external platform handles (Codeforces & LeetCode) to retrieve rating graphs, submission histories, and platform-specific metrics.
-- 🎯 **AI Topic Detection & Tracking**: Organizes problems into topics (Sliding Window, Math, Trees) and measures the user’s success rate per topic to guide their learning journey.
-- 🔥 **Daily Streaks System**: Keeps developers motivated by tracking continuous days of coding activity.
-- 🏆 **Dynamic Leaderboards**: Ranks all connected users based on a proprietary score combining their Codeforces ELO ratings, problem-solving streaks, and total problem counts.
-- 🛡️ **Role-Based Access Control (RBAC)**: Supports `USER` and `ADMIN` roles. Admins have access to exclusive dashboards (`/admin`) for overseeing the platform, managing users, and curating problems.
-- ⚔️ **Custom Contests**: Users can register for scheduled internal contests, battling over a custom set of coding problems within a strict time limit.
-- 🎨 **Premium UI/UX**: Built with a sleek dark mode aesthetic using Tailwind CSS and components from 'Tailgrids', featuring smooth gradients, glassmorphism elements, and Lucide reactivity icons.
+1. **Relational modeling**: Users, Problems, Topics, Submissions, Contests, Registrations, and per-user solved status.
+2. **Query-driven analytics**: Leaderboards, acceptance rate, streaks, topic performance, and contest progress.
+3. **Integrity & performance**: Primary keys, composite keys, foreign keys, indexes, and transaction-safe updates.
+4. **Advanced SQL**: Global percentile ranking using a window function (`PERCENT_RANK()`).
 
 ---
 
-## 🛠️ Technology Stack
+## Features Implemented
 
-### Frontend Architecture
-
-- **Framework**: [Next.js (App Router)](https://nextjs.org/) for Server-Side Rendering (SSR) and seamless SEO-optimized page routing.
-- **Language**: [TypeScript](https://www.typescriptlang.org/) for end-to-end type safety.
-- **Styling Engine**: [Tailwind CSS](https://tailwindcss.com/) paired with highly-polished utility components.
-- **Icons**: [Lucide React](https://lucide.dev/) for crisp, scalable vector graphics.
-
-### Backend & Database Layer
-
-- **API Runtime**: Next.js App Router API Routes (`app/api/**`).
-- **ORM (Object-Relational Mapping)**: [Prisma](https://www.prisma.io/).
-- **Database**: PostgreSQL (used for production deployments and local dev parity).
-- **Authentication**: [NextAuth.js](https://next-auth.js.org/) and [`bcryptjs`](https://www.npmjs.com/package/bcryptjs) for robust credential management and secure session handling.
+- **RBAC**: Role-based navigation and admin-only management screens.
+- **Problem bank**: Problems with difficulty + topic tagging (many-to-many).
+- **Submissions ledger**: Stores attempts with verdicts, language, timestamps, and optional contest context.
+- **Streak tracking**: Updates a user’s streak on Accepted submissions.
+- **Contests**: Admin creates contests with ordered problems; users register; contest “Join” continues to next unsolved problem; final summary page when all solved.
+- **Leaderboards**:
+    - Total solved + acceptance rate
+    - **Global Percentile Ranking (advanced SQL window function)**
 
 ---
 
-## 🗄️ Database Architecture (Prisma Schema Overview)
+## Tech Stack
+
+### Frontend
+
+- Next.js App Router + React + TypeScript
+- Tailwind CSS + Tailgrids components
+- Lucide React icons
+
+### Backend + Database
+
+- Next.js API routes (`app/api/**`)
+- Prisma ORM
+- PostgreSQL
+- NextAuth (Credentials) + `bcryptjs`
+
+---
+
+## Database Design (What a DBMS Reviewer Cares About)
+
+The schema is intentionally relational and constraint-heavy:
+
+- **Many-to-many**: Problems ↔ Topics via `problem_topics`.
+- **Composite keys**: Contest registrations (`userId, contestId`) and contest problem mapping (`contestId, problemId`).
+- **Ledger-style table**: `submissions` stores immutable attempts over time.
+- **Derived/analytic tables**:
+    - `user_problem_status` tracks solved state per user per problem.
+    - `topic_performance` aggregates attempted/solved counters.
+- **Indexes**: Chosen for common access patterns (e.g., submissions by user/time, contest submissions, etc.).
 
 CodeTrack relies on a highly relational schema to manage the ecosystem. Below is the blueprint of the core models interacting under the hood:
 
-### 👤 `User`
+### Core Entities
 
-The central entity for authentication and tracking.
-
-- Stores credentials, global platform handles (`leetcodeHandle`, `codeforcesHandle`), and ratings.
-- Contains relations to their Submissions, Contour Registrations, created Contests, and Streaks.
+- `users`: credentials + role + streak fields
+- `problems`: difficulty + cached submission counters
+- `topics`: unique topic names
+- `problem_topics`: bridge table
+- `submissions`: verdicts + timestamps (+ optional `contestId`)
+- `contests`, `contest_problems`, `contest_registrations`
+- `user_problem_status`: solved tracking
 
 ### 📚 `Problem` & 🏷️ `Topic`
 
@@ -79,43 +91,46 @@ The architecture for hosting platform-exclusive tournaments.
 - **ContestProblem**: An ordered mapping of the problems specifically assigned to that contest.
 - **ContestRegistration**: Tracks the users who have explicitly signed up to compete.
 
-### 🔥 `Streak`
+## Advanced SQL Showcase: Top X% Global Percentile Ranking
 
-Gamification model bound 1-to-1 with a `User`.
+To earn strong DBMS marks, the leaderboard includes a **global percentile** computed inside PostgreSQL using a **window function**.
 
-- Tracks `currentStreak` and `longestStreak` alongside the `lastActiveDate` to encourage daily coding activity.
+- **Window function**: `PERCENT_RANK() OVER (ORDER BY totalSolved DESC)`
+- **Interpretation**: lower rank value = better; percentile is computed as `100 - percentRank * 100`.
+- **Top X% filter**: `/api/leaderboard?topPercent=10` returns only the top 10%.
+
+Implementation lives in `app/api/leaderboard/route.ts` and uses:
+
+- CTEs (`WITH ...`) for readability
+- `LEFT JOIN` + `COALESCE` to handle users with zero activity
+- `PERCENT_RANK()` for true percentile ranking (not manual math)
 
 ---
 
-## 📂 Project Structure Overview
+## Project Structure
 
 ```text
-m:\project\CodeTrack- DBMS mini project\codetrack\
-├── app/                  # Next.js App Router root (Pages, Layouts, API Endpoints)
-│   ├── admin/            # Admin control panel UI
-│   ├── api/              # Backend serverless REST routes (e.g., /api/problems)
-│   ├── leaderboard/      # UI for viewing global user ranks
-│   ├── globals.css       # Core global stylesheet
-│   └── page.tsx          # Marketing landing page (Hero, Stats, Features)
-├── components/           # Reusable React components (Buttons, Cards, Badges, Modals)
-├── lib/                  # Shared utility logic
-│   ├── analytics.ts      # Functions calculating user weakness & strengths
-│   └── leetcode.ts       # Service methods for scraping or calling LeetCode endpoints
-├── prisma/               # Database configurations
-│   ├── schema.prisma     # The Prisma schema defining the database entities
-│   ├── seed.js           # Seed script for sample data
-│   └── seed.js           # Script to prepopulate the DB with dummy data/problems
-├── public/               # Static assets directly served to the frontend
-└── package.json          # Node.js dependencies and script configurations
+codetrack/
+  app/
+    api/                 # Backend routes (leaderboard, contests, problems, submissions, ...)
+    contests/            # Contest list, details, final summary
+    problems/            # Problem list + detail + contest navigation
+    manage/              # Admin management UI
+    dashboard/           # User dashboard
+  components/            # Tailgrids UI + Navbar
+  lib/                   # prisma client, streak logic, analytics
+  prisma/
+    schema.prisma
+    seed.mjs
 ```
 
 ---
 
-## ⚙️ Prerequisites & Setup
+## Setup (Local)
 
 Ensure you have the following installed on your local machine:
 
-- **Node.js** (v18.x or newer)
+- **Node.js** (v20+ recommended; see `package.json` engines)
 - **npm**, **yarn**, **pnpm**, or **bun**
 
 ### 1. Clone & Install
@@ -123,8 +138,6 @@ Ensure you have the following installed on your local machine:
 Clone the repository and install all node modules:
 
 ```bash
-git clone <repository-url>
-cd "CodeTrack- DBMS mini project/codetrack"
 npm install
 ```
 
@@ -144,17 +157,14 @@ NEXTAUTH_URL="http://localhost:3000"
 Synchronize your Prisma schema with your PostgreSQL database:
 
 ```bash
-# Generate the Prisma Client
 npx prisma generate
-
-# Push the schema state to the database (creates tables)
 npx prisma db push
 ```
 
 _(Optional)_ If you wish to populate the database with mock problems, topics, and test users:
 
 ```bash
-node prisma/seed.js
+npm run seed
 ```
 
 ### 4. Run the Application
@@ -170,7 +180,7 @@ Open your browser to start tracking your code!
 
 ---
 
-## 💻 Available CLI Scripts
+## Useful Commands
 
 In the project directory, you can run:
 
@@ -178,30 +188,22 @@ In the project directory, you can run:
 - `npm run build` — Compiles the application for production deployment.
 - `npm run start` — Boots the optimized production build.
 - `npm run lint` — Runs ESLint to find and fix syntax/style problems in your code.
+- `npm run seed` — Populates the database with sample users, topics, problems, and a contest.
 
 ---
 
-## 🛣️ Roadmap & Future Enhancements
+## DBMS Viva / Evaluation Talking Points
 
-- [ ] Implement live WebSocket connections for real-time Contest Leaderboards.
-- [ ] Extend API support to include AtCoder and CodeChef profile aggregations.
-- [ ] Incorporate interactive data visualization graphs using Chart.js or Recharts to map out submission history over time.
-- [ ] Add dark-mode/light-mode toggles.
+If you are presenting this to a DBMS professor, highlight:
 
----
-
-## 🤝 Contribution Guidelines
-
-This project was built as a DBMS mini-project, but contributions to expand functionality are highly encouraged!
-
-1. **Fork** the repository.
-2. Create a **Feature Branch** (`git checkout -b feature/AmazingFeature`).
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`).
-4. Push to the Branch (`git push origin feature/AmazingFeature`).
-5. Open a **Pull Request**.
+1. **Schema normalization**: clean separation of entities and bridge tables.
+2. **Constraints**: composite primary keys for relationships (registrations, contest problems).
+3. **Indexing**: optimized lookup patterns for submissions and contest analytics.
+4. **Transactions**: submission creation updates multiple dependent tables safely.
+5. **Advanced SQL analytics**: percentile ranking implemented using `PERCENT_RANK()`.
 
 ---
 
-<p align="center">
-  <i>Made with 💡 and ☕ for competitive programmers, by competitive programmers.</i>
-</p>
+---
+
+This is a DBMS mini-project built to demonstrate **real relational design + real SQL analytics**, not just CRUD screens.

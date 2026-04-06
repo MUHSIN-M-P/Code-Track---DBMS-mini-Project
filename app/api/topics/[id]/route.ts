@@ -14,7 +14,7 @@ export async function DELETE(
     } catch {
         return NextResponse.json(
             { error: "Failed to delete topic" },
-            { status: 500 }
+            { status: 500 },
         );
     }
 }

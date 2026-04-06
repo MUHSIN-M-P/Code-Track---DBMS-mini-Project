@@ -12,6 +12,7 @@ interface UserRank {
     acceptanceRate: number;
     currentStreak: number;
     longestStreak: number;
+    globalPercentile: number;
 }
 
 export default function LeaderboardPage() {
@@ -84,6 +85,9 @@ export default function LeaderboardPage() {
                                     </div>
                                 </th>
                                 <th className="px-6 py-5 text-sm font-semibold text-gray-700 uppercase tracking-wider text-center">
+                                    Global %ile
+                                </th>
+                                <th className="px-6 py-5 text-sm font-semibold text-gray-700 uppercase tracking-wider text-center">
                                     <div className="flex items-center justify-center gap-2">
                                         <Activity size={16} /> Acceptance
                                     </div>
@@ -142,6 +146,15 @@ export default function LeaderboardPage() {
                                         </Badge>
                                     </td>
                                     <td className="px-6 py-4 text-center">
+                                        <span className="text-sm font-semibold text-gray-700">
+                                            {Number.isFinite(
+                                                user.globalPercentile,
+                                            )
+                                                ? `${user.globalPercentile.toFixed(2)}%`
+                                                : "—"}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-center">
                                         <span
                                             className={`text-lg ${getAcceptanceColor(user.acceptanceRate)}`}
                                         >
@@ -153,7 +166,7 @@ export default function LeaderboardPage() {
                             {users.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={5}
+                                        colSpan={6}
                                         className="px-6 py-12 text-center text-gray-500"
                                     >
                                         No coders found. Be the first to join

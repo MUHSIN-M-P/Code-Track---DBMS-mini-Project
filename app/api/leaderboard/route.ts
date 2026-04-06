@@ -1,79 +1,84 @@
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
-import { Verdict, Role } from "@prisma/client";
 
-export async function GET() {
-    const users = await prisma.user.findMany({
-        where: { role: Role.user, isActive: true },
-        select: {
-            id: true,
-            username: true,
-            joinDate: true,
-            currentStreak: true,
-            longestStreak: true,
-        },
-        orderBy: { joinDate: "asc" },
-    });
+type LeaderboardRow = {
+    id: string;
+    username: string;
+    totalSolved: number;
+    totalSubmissions: number;
+    acceptanceRate: number;
+    currentStreak: number;
+    longestStreak: number;
+    percentRank: number;
+    globalPercentile: number;
+};
 
-    const userIds = users.map((u) => u.id);
+export async function GET(req: Request) {
+    const { searchParams } = new URL(req.url);
+    const topPercentParam = searchParams.get("topPercent");
+    const topPercentRaw = topPercentParam ? Number(topPercentParam) : null;
+    const topPercent =
+        topPercentRaw && Number.isFinite(topPercentRaw)
+            ? Math.max(1, Math.min(100, topPercentRaw))
+            : null;
 
-    const submissionsAgg = await prisma.submission.groupBy({
-        by: ["userId", "verdict"],
-        where: { userId: { in: userIds } },
-        _count: { _all: true },
-    });
+    const topFraction = topPercent ? topPercent / 100 : null;
 
-    const solvedAgg = await prisma.userProblemStatus.groupBy({
-        by: ["userId"],
-        where: { userId: { in: userIds }, isSolved: true },
-        _count: { _all: true },
-    });
+    const whereClause = topFraction
+        ? Prisma.sql`WHERE "percentRank" <= ${topFraction}`
+        : Prisma.empty;
 
-    const totalByUser = new Map<string, number>();
-    const acceptedByUser = new Map<string, number>();
-    for (const row of submissionsAgg) {
-        totalByUser.set(
-            row.userId,
-            (totalByUser.get(row.userId) || 0) + row._count._all,
-        );
-        if (row.verdict === Verdict.Accepted) {
-            acceptedByUser.set(
-                row.userId,
-                (acceptedByUser.get(row.userId) || 0) + row._count._all,
-            );
-        }
-    }
+    const rows = await prisma.$queryRaw<LeaderboardRow[]>`
+        WITH base_users AS (
+            SELECT u.id, u.username, u."currentStreak", u."longestStreak"
+            FROM "users" u
+            WHERE u.role = 'user'::role AND u."isActive" = true
+        ),
+        solved AS (
+            SELECT ups."userId" AS id, COUNT(*)::int AS "totalSolved"
+            FROM "user_problem_status" ups
+            WHERE ups."isSolved" = true
+            GROUP BY ups."userId"
+        ),
+        subs AS (
+            SELECT s."userId" AS id,
+                   COUNT(*)::int AS "totalSubmissions",
+                   SUM(CASE WHEN s.verdict = 'Accepted'::verdict THEN 1 ELSE 0 END)::int AS "acceptedSubmissions"
+            FROM "submissions" s
+            GROUP BY s."userId"
+        ),
+        ranked AS (
+            SELECT
+                bu.id,
+                bu.username,
+                COALESCE(solved."totalSolved", 0)::int AS "totalSolved",
+                COALESCE(subs."totalSubmissions", 0)::int AS "totalSubmissions",
+                CASE
+                    WHEN COALESCE(subs."totalSubmissions", 0) = 0 THEN 0
+                    ELSE ROUND((COALESCE(subs."acceptedSubmissions", 0)::numeric / subs."totalSubmissions") * 100)::int
+                END AS "acceptanceRate",
+                bu."currentStreak"::int AS "currentStreak",
+                bu."longestStreak"::int AS "longestStreak",
+                PERCENT_RANK() OVER (ORDER BY COALESCE(solved."totalSolved", 0) DESC) AS "percentRank"
+            FROM base_users bu
+            LEFT JOIN solved ON solved.id = bu.id
+            LEFT JOIN subs ON subs.id = bu.id
+        )
+        SELECT
+            id,
+            username,
+            "totalSolved",
+            "totalSubmissions",
+            "acceptanceRate",
+            "currentStreak",
+            "longestStreak",
+            "percentRank",
+            ROUND((100 - ("percentRank" * 100))::numeric, 2)::float8 AS "globalPercentile"
+        FROM ranked
+        ${whereClause}
+        ORDER BY "totalSolved" DESC, "acceptanceRate" DESC, "longestStreak" DESC;
+    `;
 
-    const solvedByUser = new Map(
-        solvedAgg.map((r) => [r.userId, r._count._all] as const),
-    );
-
-    const leaderboard = users
-        .map((u) => {
-            const totalSubmissions = totalByUser.get(u.id) || 0;
-            const acceptedSubmissions = acceptedByUser.get(u.id) || 0;
-            const acceptanceRate =
-                totalSubmissions > 0
-                    ? Math.round((acceptedSubmissions / totalSubmissions) * 100)
-                    : 0;
-
-            return {
-                id: u.id,
-                username: u.username,
-                totalSolved: solvedByUser.get(u.id) || 0,
-                totalSubmissions,
-                acceptanceRate,
-                currentStreak: u.currentStreak,
-                longestStreak: u.longestStreak,
-            };
-        })
-        .sort((a, b) => {
-            if (b.totalSolved !== a.totalSolved)
-                return b.totalSolved - a.totalSolved;
-            if (b.acceptanceRate !== a.acceptanceRate)
-                return b.acceptanceRate - a.acceptanceRate;
-            return b.longestStreak - a.longestStreak;
-        });
-
-    return NextResponse.json(leaderboard);
+    return NextResponse.json(rows);
 }

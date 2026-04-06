@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { Clock, Users, Trophy, Calendar, Send } from "lucide-react";
 import Link from "next/link";
 
@@ -34,6 +35,7 @@ interface LeaderboardEntry {
 export default function ContestDetailPage() {
     const { id } = useParams();
     const { data: session } = useSession();
+    const router = useRouter();
     const [contest, setContest] = useState<ContestDetail | null>(null);
     const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
     const [tab, setTab] = useState<"problems" | "leaderboard">("problems");
@@ -93,6 +95,23 @@ export default function ContestDetailPage() {
             const data = await res.json();
             alert(data.error);
         }
+    };
+
+    const handleJoin = async () => {
+        if (!userId) return;
+        const r = await fetch(
+            `/api/contests/${id}/next-problem?userId=${encodeURIComponent(userId)}`,
+        );
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+            alert(data.error || "Failed to join contest");
+            return;
+        }
+        if (data.allSolved || !data.problemId) {
+            router.push(`/contests/${id}/final`);
+            return;
+        }
+        router.push(`/problems/${data.problemId}?contestId=${id}`);
     };
 
     const diffBadge: Record<string, string> = {
@@ -183,7 +202,7 @@ export default function ContestDetailPage() {
                         {contest._count.registrations} participants
                     </div>
                 </div>
-                {isUpcoming && session && !isRegistered && (
+                {!isEnded && session && !isRegistered && (
                     <button
                         className="btn btn-primary"
                         onClick={handleRegister}
@@ -191,7 +210,12 @@ export default function ContestDetailPage() {
                         Register Now
                     </button>
                 )}
-                {isRegistered && (
+                {isActive && isRegistered && (
+                    <button className="btn btn-primary" onClick={handleJoin}>
+                        Join Contest
+                    </button>
+                )}
+                {!isActive && isRegistered && (
                     <span className="badge badge-accepted">✓ Registered</span>
                 )}
             </div>

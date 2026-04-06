@@ -21,7 +21,8 @@ export default function ProfilePage() {
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState("");
 
-    const isAdmin = (session?.user as any)?.role === "admin";
+    const role = (session?.user as { role?: unknown } | undefined)?.role;
+    const isAdmin = role === "admin";
 
     useEffect(() => {
         if (status === "unauthenticated") router.push("/login");

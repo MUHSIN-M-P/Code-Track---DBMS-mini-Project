@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getTopicPerformance, getUserStats, getPlatformStats } from "@/lib/analytics";
+import { getTopicPerformance, getUserStats, getPlatformStats, getHeatmapData } from "@/lib/analytics";
 import { Verdict } from "@prisma/client";
 
 export async function GET(req: Request) {
@@ -27,7 +27,7 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const [userStats, topics, recent] = await Promise.all([
+    const [userStats, topics, recent, heatmap] = await Promise.all([
         getUserStats(userId),
         getTopicPerformance(userId),
         prisma.submission.findMany({
@@ -40,6 +40,7 @@ export async function GET(req: Request) {
             orderBy: { submittedAt: "desc" },
             take: 10,
         }),
+        getHeatmapData(userId),
     ]);
 
     const recentSubmissions = recent.map((s) => ({
@@ -58,12 +59,13 @@ export async function GET(req: Request) {
             id: user.id,
             username: user.username,
             preferredLang: user.preferredLang,
-            currentStreak: user.currentStreak,
-            longestStreak: user.longestStreak,
+            currentStreak: userStats.currentStreak,
+            longestStreak: userStats.longestStreak,
         },
         stats: userStats,
         platformStats: user.role === "admin" ? await getPlatformStats() : undefined,
         topics,
         recentSubmissions,
+        heatmap,
     });
 }

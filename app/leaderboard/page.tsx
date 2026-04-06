@@ -1,12 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Trophy, Code, Activity } from "lucide-react";
-import {
-    Card,
-    CardHeader,
-    CardTitle,
-    CardContent,
-} from "@/components/tailgrids/core/card";
+import { Card } from "@/components/tailgrids/core/card";
 import { Badge } from "@/components/tailgrids/core/badge";
 
 interface UserRank {
@@ -40,7 +35,9 @@ export default function LeaderboardPage() {
         );
     }
 
-    const getRankBadgeColor = (index: number) => {
+    type RankBadgeColor = "warning" | "gray" | "orange";
+
+    const getRankBadgeColor = (index: number): RankBadgeColor => {
         if (index === 0) return "warning";
         if (index === 1) return "gray";
         if (index === 2) return "orange";
@@ -101,7 +98,7 @@ export default function LeaderboardPage() {
                                 >
                                     <td className="px-6 py-4">
                                         <Badge
-                                            color={getRankBadgeColor(i) as any}
+                                            color={getRankBadgeColor(i)}
                                             size="lg"
                                             className="w-8 h-8 rounded-full flex justify-center items-center p-0 font-bold"
                                         >

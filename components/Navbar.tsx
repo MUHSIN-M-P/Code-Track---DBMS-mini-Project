@@ -2,12 +2,34 @@
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
-import { Code2, LogOut, User, Shield } from "lucide-react";
+import { Code2, LogOut, User, Flame } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/tailgrids/core/button";
 
 export default function Navbar() {
     const { data: session } = useSession();
     const pathname = usePathname();
+    const isAdmin =
+        (session?.user as { role?: string } | undefined)?.role === "admin";
+    const [streak, setStreak] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (!session?.user) return;
+        const userId = (session.user as { id: string }).id;
+        let cancelled = false;
+        fetch(`/api/streak?userId=${userId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (!cancelled && data.currentStreak !== undefined) {
+                    setStreak(data.currentStreak);
+                }
+            })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, [session, pathname]);
+
+    const isActive = (href: string) =>
+        pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
 
     return (
         <nav className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/95 backdrop-blur-md shadow-sm">
@@ -26,18 +48,42 @@ export default function Navbar() {
                         <Link
                             href="/dashboard"
                             className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                                pathname === "/dashboard"
+                                isActive("/dashboard")
                                     ? "bg-blue-50 text-blue-600"
                                     : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                             }`}
                         >
                             Dashboard
                         </Link>
-                        {(session?.user as any)?.role === "admin" && (
+                        {!isAdmin && (
+                            <>
+                                <Link
+                                    href="/problems"
+                                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                        isActive("/problems")
+                                            ? "bg-blue-50 text-blue-600"
+                                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                                    }`}
+                                >
+                                    Problems
+                                </Link>
+                                <Link
+                                    href="/contests"
+                                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                        isActive("/contests")
+                                            ? "bg-blue-50 text-blue-600"
+                                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                                    }`}
+                                >
+                                    Contests
+                                </Link>
+                            </>
+                        )}
+                        {isAdmin && (
                             <Link
                                 href="/manage"
                                 className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                                    pathname === "/manage"
+                                    isActive("/manage")
                                         ? "bg-blue-50 text-blue-600"
                                         : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                                 }`}
@@ -51,6 +97,12 @@ export default function Navbar() {
                 <div className="flex items-center gap-3">
                     {session ? (
                         <>
+                            {streak !== null && !isAdmin && (
+                                <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-50 text-orange-600 font-bold text-sm" title="Current Daily Streak">
+                                    <Flame size={18} className={streak > 0 ? "fill-orange-500 text-orange-500" : "text-orange-400"} />
+                                    <span>{streak}</span>
+                                </div>
+                            )}
                             <Link
                                 href="/profile"
                                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-50 text-gray-700 hover:text-gray-900 transition-colors text-sm font-medium"

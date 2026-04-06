@@ -2,6 +2,8 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
     CheckCircle2,
     XCircle,
@@ -32,6 +34,11 @@ interface Problem {
 export default function ProblemDetailPage() {
     const { id } = useParams();
     const { data: session } = useSession();
+    const searchParams = useSearchParams();
+    const contestId = searchParams.get("contestId") || undefined;
+    const [contestProblems, setContestProblems] = useState<
+        { order: number; problem: { id: string; title: string } }[]
+    >([]);
     const [problem, setProblem] = useState<Problem | null>(null);
     const [language, setLanguage] = useState("cpp");
     const [verdict, setVerdict] = useState("Accepted");
@@ -43,6 +50,20 @@ export default function ProblemDetailPage() {
             .then((r) => r.json())
             .then(setProblem);
     }, [id]);
+
+    useEffect(() => {
+        if (!contestId) return;
+
+        fetch(`/api/contests/${contestId}`)
+            .then((r) => r.json())
+            .then((data) => {
+                const problems = Array.isArray(data?.problems)
+                    ? data.problems
+                    : [];
+                setContestProblems(problems);
+            })
+            .catch(() => setContestProblems([]));
+    }, [contestId]);
 
     const handleSubmit = async () => {
         if (!session?.user) {
@@ -65,6 +86,7 @@ export default function ProblemDetailPage() {
                 problemId: id,
                 language,
                 verdict,
+                contestId,
             }),
         });
 
@@ -100,8 +122,73 @@ export default function ProblemDetailPage() {
         (s) => s.userId === userId,
     );
 
+    const currentIndex = contestProblems.findIndex(
+        (cp) => cp.problem.id === id,
+    );
+    const prevProblemId =
+        currentIndex > 0 ? contestProblems[currentIndex - 1]?.problem.id : null;
+    const nextProblemId =
+        currentIndex >= 0 && currentIndex < contestProblems.length - 1
+            ? contestProblems[currentIndex + 1]?.problem.id
+            : null;
+
     return (
         <div className="container" style={{ paddingBottom: 60 }}>
+            {contestId && currentIndex >= 0 && (
+                <div
+                    className="card"
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        marginBottom: 16,
+                        flexWrap: "wrap",
+                    }}
+                >
+                    <div
+                        style={{ fontSize: 14, color: "var(--text-secondary)" }}
+                    >
+                        Contest Mode • Problem {currentIndex + 1} of{" "}
+                        {contestProblems.length}
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <Link
+                            href={`/contests/${contestId}`}
+                            className="btn btn-secondary btn-sm"
+                        >
+                            Contest Details
+                        </Link>
+                        {prevProblemId ? (
+                            <Link
+                                href={`/problems/${prevProblemId}?contestId=${contestId}`}
+                                className="btn btn-secondary btn-sm"
+                            >
+                                Prev
+                            </Link>
+                        ) : (
+                            <button
+                                className="btn btn-secondary btn-sm"
+                                disabled
+                            >
+                                Prev
+                            </button>
+                        )}
+                        {nextProblemId ? (
+                            <Link
+                                href={`/problems/${nextProblemId}?contestId=${contestId}`}
+                                className="btn btn-primary btn-sm"
+                            >
+                                Next
+                            </Link>
+                        ) : (
+                            <button className="btn btn-primary btn-sm" disabled>
+                                Next
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
             <div className="page-header">
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <h1 className="page-title">{problem.title}</h1>

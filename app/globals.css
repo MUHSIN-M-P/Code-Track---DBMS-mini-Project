@@ -93,7 +93,7 @@ button {
     outline: none;
 }
 
-input,
+input:not([type="checkbox"]):not([type="radio"]),
 select,
 textarea {
     font-family: inherit;

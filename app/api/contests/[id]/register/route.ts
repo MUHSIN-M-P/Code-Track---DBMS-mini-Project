@@ -8,6 +8,12 @@ export async function POST(
     const { id } = await params;
     try {
         const { userId } = await req.json();
+        if (!userId || typeof userId !== "string") {
+            return NextResponse.json(
+                { error: "Missing userId" },
+                { status: 400 },
+            );
+        }
 
         const targetContest = await prisma.contest.findUnique({
             where: { id },

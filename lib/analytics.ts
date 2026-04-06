@@ -1,6 +1,77 @@
 import { prisma } from "./prisma";
 import { Verdict } from "@prisma/client";
 
+export async function evaluateStreak(userId: string) {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { currentStreak: true, longestStreak: true },
+    });
+
+    if (!user) return { currentStreak: 0, longestStreak: 0 };
+
+    let currentStreak = user.currentStreak;
+    const longestStreak = user.longestStreak;
+
+    if (currentStreak > 0) {
+        const latestAC = await prisma.submission.findFirst({
+            where: { userId, verdict: Verdict.Accepted },
+            orderBy: { submittedAt: "desc" },
+        });
+
+        if (latestAC) {
+            const today = new Date();
+            today.setUTCHours(0, 0, 0, 0);
+            const lastACDate = new Date(latestAC.submittedAt);
+            lastACDate.setUTCHours(0, 0, 0, 0);
+
+            const diffInDays =
+                (today.getTime() - lastACDate.getTime()) / (1000 * 3600 * 24);
+
+            if (diffInDays > 1) {
+                currentStreak = 0;
+                await prisma.user.update({
+                    where: { id: userId },
+                    data: { currentStreak: 0 },
+                });
+            }
+        } else {
+            currentStreak = 0;
+            await prisma.user.update({
+                where: { id: userId },
+                data: { currentStreak: 0 },
+            });
+        }
+    }
+
+    return { currentStreak, longestStreak };
+}
+
+export async function getHeatmapData(userId: string) {
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    oneYearAgo.setUTCHours(0, 0, 0, 0);
+
+    const submissions = await prisma.submission.findMany({
+        where: {
+            userId,
+            submittedAt: { gte: oneYearAgo },
+            verdict: Verdict.Accepted,
+        },
+        select: { submittedAt: true },
+    });
+
+    const counts = new Map<string, number>();
+    for (const sub of submissions) {
+        const dateStr = sub.submittedAt.toISOString().split("T")[0];
+        counts.set(dateStr, (counts.get(dateStr) || 0) + 1);
+    }
+
+    return Array.from(counts.entries()).map(([date, count]) => ({
+        date,
+        count,
+    }));
+}
+
 export async function getUserStats(userId: string) {
     const totalSubmissions = await prisma.submission.count({
         where: { userId },
@@ -13,13 +84,26 @@ export async function getUserStats(userId: string) {
     const solvedProblems = await prisma.submission.findMany({
         where: { userId, verdict: Verdict.Accepted },
         distinct: ["problemId"],
-        select: { problemId: true },
+        select: {
+            problemId: true,
+            problem: { select: { difficulty: true } },
+        },
     });
 
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { currentStreak: true, longestStreak: true },
+    const difficultyDistribution = {
+        Easy: 0,
+        Medium: 0,
+        Hard: 0,
+    };
+
+    solvedProblems.forEach((sub) => {
+        if (sub.problem?.difficulty) {
+            difficultyDistribution[sub.problem.difficulty] =
+                (difficultyDistribution[sub.problem.difficulty] || 0) + 1;
+        }
     });
+
+    const { currentStreak, longestStreak } = await evaluateStreak(userId);
 
     const acceptanceRate =
         totalSubmissions > 0
@@ -31,8 +115,9 @@ export async function getUserStats(userId: string) {
         totalSubmissions,
         acceptedSubmissions,
         acceptanceRate,
-        currentStreak: user?.currentStreak || 0,
-        longestStreak: user?.longestStreak || 0,
+        currentStreak,
+        longestStreak,
+        difficultyDistribution,
     };
 }
 

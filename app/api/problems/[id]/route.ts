@@ -36,12 +36,12 @@ export async function GET(
 
     const totalSubs = problem.submissions.length;
     const accepted = problem.submissions.filter(
-        (s: any) => s.verdict === Verdict.Accepted,
+        (s) => s.verdict === Verdict.Accepted,
     ).length;
     const uniqueSolvers = new Set(
         problem.submissions
-            .filter((s: any) => s.verdict === Verdict.Accepted)
-            .map((s: any) => s.userId),
+            .filter((s) => s.verdict === Verdict.Accepted)
+            .map((s) => s.userId),
     ).size;
 
     return NextResponse.json({

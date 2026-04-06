@@ -237,8 +237,8 @@ export async function POST(req: Request) {
         }
 
         return NextResponse.json(submission, { status: 201 });
-    } catch (e: any) {
-        if (e?.message === "PROBLEM_NOT_FOUND") {
+    } catch (e: unknown) {
+        if (e instanceof Error && e.message === "PROBLEM_NOT_FOUND") {
             return NextResponse.json(
                 { error: "Problem not found" },
                 { status: 404 },

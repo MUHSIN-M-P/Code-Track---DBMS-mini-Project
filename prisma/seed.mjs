@@ -1,5 +1,5 @@
-const { PrismaClient } = require("@prisma/client");
-const bcrypt = require("bcryptjs");
+import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -321,14 +321,16 @@ async function main() {
     }
 
     await prisma.contestRegistration.upsert({
-        where: { userId_contestId: { userId: user.id, contestId: contest.id } },
+        where: {
+            userId_contestId: { userId: user.id, contestId: contest.id },
+        },
         update: {},
         create: { userId: user.id, contestId: contest.id },
     });
 
     console.log("✅ Seed completed successfully!");
-    console.log(`   Admin: admin@codetrack.io / admin123`);
-    console.log(`   User: john@codetrack.io / user123`);
+    console.log("   Admin: admin@codetrack.io / admin123");
+    console.log("   User: john@codetrack.io / user123");
     console.log(
         `   ${topics.length} topics, ${problems.length} problems, 1 contest created`,
     );

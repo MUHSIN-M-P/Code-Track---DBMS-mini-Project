@@ -34,6 +34,12 @@ interface Contest {
     _count: { registrations: number; problems: number };
 }
 
+interface ProblemOption {
+    id: string;
+    title: string;
+    difficulty: string;
+}
+
 export default function AdminPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
@@ -48,17 +54,54 @@ export default function AdminPage() {
     const [cTitle, setCTitle] = useState("");
     const [cStart, setCStart] = useState("");
     const [cDuration, setCDuration] = useState("90");
+    const [cProblemIds, setCProblemIds] = useState<string[]>([]);
+    const [availableProblems, setAvailableProblems] = useState<ProblemOption[]>(
+        [],
+    );
+    const [problemsLoading, setProblemsLoading] = useState(false);
 
     const isAdmin = (session?.user as { role?: string })?.role === "admin";
+
+    const openContestModal = async () => {
+        setCProblemIds([]);
+        setShowContestModal(true);
+        setProblemsLoading(true);
+        try {
+            const r = await fetch("/api/problems");
+            const data = await r.json();
+            setAvailableProblems(
+                Array.isArray(data)
+                    ? data.map((p) => ({
+                          id: String(p.id),
+                          title: String(p.title),
+                          difficulty: String(p.difficulty),
+                      }))
+                    : [],
+            );
+        } catch {
+            setAvailableProblems([]);
+        } finally {
+            setProblemsLoading(false);
+        }
+    };
+
+    const closeContestModal = () => {
+        setShowContestModal(false);
+        setCProblemIds([]);
+    };
+
+    const toggleContestProblem = (problemId: string) => {
+        setCProblemIds((prev) =>
+            prev.includes(problemId)
+                ? prev.filter((id) => id !== problemId)
+                : [...prev, problemId],
+        );
+    };
 
     useEffect(() => {
         if (status === "unauthenticated") router.push("/login");
         if (status === "authenticated" && !isAdmin) router.push("/dashboard");
     }, [status, isAdmin, router]);
-
-    useEffect(() => {
-        loadData();
-    }, []);
 
     const loadData = () => {
         fetch("/api/leaderboard")
@@ -69,8 +112,17 @@ export default function AdminPage() {
             .then(setContests);
     };
 
+    useEffect(() => {
+        loadData();
+    }, []);
+
     const createContest = async () => {
         const userId = (session?.user as { id: string })?.id;
+        if (!userId || !cTitle || !cStart) return;
+        if (cProblemIds.length < 1) {
+            alert("Select at least 1 problem");
+            return;
+        }
         await fetch("/api/contests", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -78,10 +130,11 @@ export default function AdminPage() {
                 title: cTitle,
                 startTime: cStart,
                 duration: parseInt(cDuration),
+                problemIds: cProblemIds,
                 createdById: userId,
             }),
         });
-        setShowContestModal(false);
+        closeContestModal();
         setCTitle("");
         setCStart("");
         setCDuration("90");
@@ -141,7 +194,7 @@ export default function AdminPage() {
                             </h2>
                             <Button
                                 color="primary"
-                                onClick={() => setShowContestModal(true)}
+                                onClick={openContestModal}
                                 className="flex items-center gap-2 shadow-md"
                             >
                                 <Plus size={16} /> Create Contest
@@ -243,9 +296,7 @@ export default function AdminPage() {
                                     <CardHeader className="flex flex-row justify-between items-center border-b border-gray-200 pb-4">
                                         <CardTitle>Create Contest</CardTitle>
                                         <button
-                                            onClick={() =>
-                                                setShowContestModal(false)
-                                            }
+                                            onClick={closeContestModal}
                                             className="text-gray-400 hover:text-gray-600 p-1 transition-colors"
                                         >
                                             <X size={20} />
@@ -291,13 +342,85 @@ export default function AdminPage() {
                                                 className="w-full border-gray-300 bg-white text-gray-900"
                                             />
                                         </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-medium text-gray-700">
+                                                Choose Problems
+                                            </label>
+                                            <div className="border border-gray-200 rounded-lg bg-white max-h-56 overflow-y-auto">
+                                                {problemsLoading ? (
+                                                    <div className="p-3 text-sm text-gray-500">
+                                                        Loading problems...
+                                                    </div>
+                                                ) : availableProblems.length ===
+                                                  0 ? (
+                                                    <div className="p-3 text-sm text-gray-500">
+                                                        No problems available.
+                                                    </div>
+                                                ) : (
+                                                    <div className="divide-y divide-gray-100">
+                                                        {availableProblems.map(
+                                                            (p) => (
+                                                                <label
+                                                                    key={p.id}
+                                                                    className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50"
+                                                                >
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        className="h-4 w-4"
+                                                                        checked={cProblemIds.includes(
+                                                                            p.id,
+                                                                        )}
+                                                                        onChange={() =>
+                                                                            toggleContestProblem(
+                                                                                p.id,
+                                                                            )
+                                                                        }
+                                                                    />
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className="text-sm font-semibold text-gray-900 truncate">
+                                                                            {
+                                                                                p.title
+                                                                            }
+                                                                        </div>
+                                                                        <div className="text-xs text-gray-500">
+                                                                            {
+                                                                                p.difficulty
+                                                                            }
+                                                                        </div>
+                                                                    </div>
+                                                                    <Badge
+                                                                        color={
+                                                                            p.difficulty ===
+                                                                            "Easy"
+                                                                                ? "success"
+                                                                                : p.difficulty ===
+                                                                                    "Medium"
+                                                                                  ? "warning"
+                                                                                  : p.difficulty ===
+                                                                                      "Hard"
+                                                                                    ? "error"
+                                                                                    : "gray"
+                                                                        }
+                                                                    >
+                                                                        {
+                                                                            p.difficulty
+                                                                        }
+                                                                    </Badge>
+                                                                </label>
+                                                            ),
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="text-xs text-gray-500">
+                                                Selected: {cProblemIds.length}
+                                            </div>
+                                        </div>
                                         <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200 mt-6">
                                             <Button
                                                 color="secondary"
                                                 appearance="outline"
-                                                onClick={() =>
-                                                    setShowContestModal(false)
-                                                }
+                                                onClick={closeContestModal}
                                             >
                                                 Cancel
                                             </Button>

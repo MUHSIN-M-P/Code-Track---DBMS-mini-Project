@@ -1,15 +1,34 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(req: Request) {
+    const { searchParams } = new URL(req.url);
+    const userId = searchParams.get("userId");
+
     const contests = await prisma.contest.findMany({
         include: {
             _count: { select: { registrations: true, problems: true } },
             createdBy: { select: { username: true } },
+            ...(userId
+                ? {
+                      registrations: {
+                          where: { userId },
+                          select: { userId: true },
+                      },
+                  }
+                : {}),
         },
         orderBy: { startTime: "desc" },
     });
-    return NextResponse.json(contests);
+
+    if (!userId) return NextResponse.json(contests);
+
+    return NextResponse.json(
+        contests.map(({ registrations, ...c }) => ({
+            ...c,
+            isRegistered: Boolean(registrations && registrations.length > 0),
+        })),
+    );
 }
 
 export async function POST(req: Request) {
@@ -20,6 +39,13 @@ export async function POST(req: Request) {
         if (!title || !startTime || !createdById) {
             return NextResponse.json(
                 { error: "Missing fields" },
+                { status: 400 },
+            );
+        }
+
+        if (!Array.isArray(problemIds) || problemIds.length < 1) {
+            return NextResponse.json(
+                { error: "Select at least one problem" },
                 { status: 400 },
             );
         }
@@ -47,12 +73,10 @@ export async function POST(req: Request) {
                 endTime: end,
                 createdById,
                 problems: {
-                    create: (problemIds || []).map(
-                        (pid: string, i: number) => ({
-                            problemId: pid,
-                            order: i + 1,
-                        }),
-                    ),
+                    create: problemIds.map((pid: string, i: number) => ({
+                        problemId: pid,
+                        order: i + 1,
+                    })),
                 },
             },
             include: { problems: { include: { problem: true } } },

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Users, Trophy, Trash2, X, Plus, Code2 } from "lucide-react";
+import { Users, Trophy, Trash2, X, Plus, Code2, Tags } from "lucide-react";
 import {
     Card,
     CardHeader,
@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/tailgrids/core/button";
 import { Input } from "@/components/tailgrids/core/input";
 
-type Tab = "users" | "problems" | "contests";
+type Tab = "users" | "problems" | "contests" | "topics";
 
 interface UserRank {
     id: string;
@@ -49,6 +49,17 @@ export default function ManagePage() {
     const [cTitle, setCTitle] = useState("");
     const [cStart, setCStart] = useState("");
     const [cDuration, setCDuration] = useState("90");
+    const [cProblemIds, setCProblemIds] = useState<string[]>([]);
+
+    const openContestModal = () => {
+        setCProblemIds([]);
+        setShowContestModal(true);
+    };
+
+    const closeContestModal = () => {
+        setShowContestModal(false);
+        setCProblemIds([]);
+    };
 
     // Problem Modal State
     const [showProblemModal, setShowProblemModal] = useState(false);
@@ -56,15 +67,9 @@ export default function ManagePage() {
     const [pDesc, setPDesc] = useState("");
     const [pDiff, setPDiff] = useState("Easy");
     const [pTopics, setPTopics] = useState<string[]>([]);
-    const [availableTopics, setAvailableTopics] = useState<{id: string, name: string}[]>([]);
-
-    useEffect(() => {
-        loadData();
-        fetch("/api/topics")
-            .then(r => r.json())
-            .then(setAvailableTopics)
-            .catch(() => {});
-    }, []);
+    const [availableTopics, setAvailableTopics] = useState<
+        { id: string; name: string }[]
+    >([]);
 
     const loadData = () => {
         fetch("/api/leaderboard")
@@ -80,11 +85,24 @@ export default function ManagePage() {
             .catch(() => setProblems([]));
     };
 
+    useEffect(() => {
+        loadData();
+        fetch("/api/topics")
+            .then((r) => r.json())
+            .then(setAvailableTopics)
+            .catch(() => {});
+    }, []);
+
     // Contest Operations
     const createContest = async () => {
         const userId = (session?.user as { id: string })?.id;
         if (!userId) return;
-        
+        if (!cTitle || !cStart) return;
+        if (cProblemIds.length < 1) {
+            alert("Select at least 1 problem");
+            return;
+        }
+
         await fetch("/api/contests", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -92,6 +110,7 @@ export default function ManagePage() {
                 title: cTitle,
                 startTime: cStart,
                 duration: parseInt(cDuration),
+                problemIds: cProblemIds,
                 createdById: userId,
             }),
         });
@@ -99,6 +118,7 @@ export default function ManagePage() {
         setCTitle("");
         setCStart("");
         setCDuration("90");
+        setCProblemIds([]);
         loadData();
     };
 
@@ -122,7 +142,7 @@ export default function ManagePage() {
                 difficulty: pDiff,
                 topicIds: pTopics,
                 createdById: userId,
-            })
+            }),
         });
 
         if (res.ok) {
@@ -144,9 +164,52 @@ export default function ManagePage() {
     };
 
     const toggleTopic = (topicId: string) => {
-        setPTopics(prev => prev.includes(topicId) 
-            ? prev.filter(t => t !== topicId) 
-            : [...prev, topicId]
+        setPTopics((prev) =>
+            prev.includes(topicId)
+                ? prev.filter((t) => t !== topicId)
+                : [...prev, topicId],
+        );
+    };
+
+    const [newTopicName, setNewTopicName] = useState("");
+
+    const createTopic = async () => {
+        if (!newTopicName.trim()) return;
+        const res = await fetch("/api/topics", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: newTopicName }),
+        });
+        if (res.ok) {
+            setNewTopicName("");
+            fetch("/api/topics")
+                .then((r) => r.json())
+                .then(setAvailableTopics)
+                .catch(() => {});
+        } else {
+            alert("Failed to create topic");
+        }
+    };
+
+    const deleteTopicItem = async (id: string) => {
+        if (
+            !confirm(
+                "Are you sure? Problems belonging to this topic might lose this tag.",
+            )
+        )
+            return;
+        await fetch(`/api/topics/${id}`, { method: "DELETE" });
+        fetch("/api/topics")
+            .then((r) => r.json())
+            .then(setAvailableTopics)
+            .catch(() => {});
+    };
+
+    const toggleContestProblem = (problemId: string) => {
+        setCProblemIds((prev) =>
+            prev.includes(problemId)
+                ? prev.filter((id) => id !== problemId)
+                : [...prev, problemId],
         );
     };
 
@@ -170,7 +233,9 @@ export default function ManagePage() {
                         <button
                             onClick={() => setTab("users")}
                             className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                                tab === "users" ? "bg-indigo-50 text-indigo-600" : "text-gray-600 hover:bg-gray-50"
+                                tab === "users"
+                                    ? "bg-indigo-50 text-indigo-600"
+                                    : "text-gray-600 hover:bg-gray-50"
                             }`}
                         >
                             <Users size={16} /> Users
@@ -178,7 +243,9 @@ export default function ManagePage() {
                         <button
                             onClick={() => setTab("problems")}
                             className={`mt-1 w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                                tab === "problems" ? "bg-indigo-50 text-indigo-600" : "text-gray-600 hover:bg-gray-50"
+                                tab === "problems"
+                                    ? "bg-indigo-50 text-indigo-600"
+                                    : "text-gray-600 hover:bg-gray-50"
                             }`}
                         >
                             <Code2 size={16} /> Problems
@@ -186,10 +253,22 @@ export default function ManagePage() {
                         <button
                             onClick={() => setTab("contests")}
                             className={`mt-1 w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                                tab === "contests" ? "bg-indigo-50 text-indigo-600" : "text-gray-600 hover:bg-gray-50"
+                                tab === "contests"
+                                    ? "bg-indigo-50 text-indigo-600"
+                                    : "text-gray-600 hover:bg-gray-50"
                             }`}
                         >
                             <Trophy size={16} /> Contests
+                        </button>
+                        <button
+                            onClick={() => setTab("topics")}
+                            className={`mt-1 w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                                tab === "topics"
+                                    ? "bg-indigo-50 text-indigo-600"
+                                    : "text-gray-600 hover:bg-gray-50"
+                            }`}
+                        >
+                            <Tags size={16} /> Topics
                         </button>
                     </div>
                 </Card>
@@ -205,23 +284,49 @@ export default function ManagePage() {
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="border-b border-gray-200">
-                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700">User</th>
-                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700">Solved</th>
-                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700">Submissions</th>
-                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700">Win Rate</th>
+                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700">
+                                                User
+                                            </th>
+                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700">
+                                                Solved
+                                            </th>
+                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700">
+                                                Submissions
+                                            </th>
+                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700">
+                                                Win Rate
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-200">
                                         {users.map((u) => (
-                                            <tr key={u.id} className="hover:bg-gray-50">
-                                                <td className="px-6 py-4 font-medium text-gray-900">{u.username}</td>
-                                                <td className="px-6 py-4 font-bold text-green-600">{u.totalSolved}</td>
-                                                <td className="px-6 py-4 text-gray-700">{u.totalSubmissions}</td>
-                                                <td className="px-6 py-4 text-gray-700">{u.acceptanceRate}%</td>
+                                            <tr
+                                                key={u.id}
+                                                className="hover:bg-gray-50"
+                                            >
+                                                <td className="px-6 py-4 font-medium text-gray-900">
+                                                    {u.username}
+                                                </td>
+                                                <td className="px-6 py-4 font-bold text-green-600">
+                                                    {u.totalSolved}
+                                                </td>
+                                                <td className="px-6 py-4 text-gray-700">
+                                                    {u.totalSubmissions}
+                                                </td>
+                                                <td className="px-6 py-4 text-gray-700">
+                                                    {u.acceptanceRate}%
+                                                </td>
                                             </tr>
                                         ))}
                                         {users.length === 0 && (
-                                            <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-500">No users found</td></tr>
+                                            <tr>
+                                                <td
+                                                    colSpan={4}
+                                                    className="px-6 py-8 text-center text-gray-500"
+                                                >
+                                                    No users found
+                                                </td>
+                                            </tr>
                                         )}
                                     </tbody>
                                 </table>
@@ -246,23 +351,44 @@ export default function ManagePage() {
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="border-b border-gray-200">
-                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700">Title</th>
-                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700">Difficulty</th>
-                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700">Topics</th>
-                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700 text-right">Actions</th>
+                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700">
+                                                Title
+                                            </th>
+                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700">
+                                                Difficulty
+                                            </th>
+                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700">
+                                                Topics
+                                            </th>
+                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700 text-right">
+                                                Actions
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-200">
                                         {problems.map((p) => (
-                                            <tr key={p.id} className="hover:bg-gray-50">
-                                                <td className="px-6 py-4 font-medium text-gray-900">{p.title}</td>
-                                                <td className="px-6 py-4 text-sm text-gray-600">{p.difficulty}</td>
+                                            <tr
+                                                key={p.id}
+                                                className="hover:bg-gray-50"
+                                            >
+                                                <td className="px-6 py-4 font-medium text-gray-900">
+                                                    {p.title}
+                                                </td>
                                                 <td className="px-6 py-4 text-sm text-gray-600">
-                                                    {p.topics.map(t => t.topic.name).join(", ") || "—"}
+                                                    {p.difficulty}
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-gray-600">
+                                                    {p.topics
+                                                        .map(
+                                                            (t) => t.topic.name,
+                                                        )
+                                                        .join(", ") || "—"}
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
                                                     <button
-                                                        onClick={() => deleteProblem(p.id)}
+                                                        onClick={() =>
+                                                            deleteProblem(p.id)
+                                                        }
                                                         className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                                                     >
                                                         <Trash2 size={16} />
@@ -271,7 +397,14 @@ export default function ManagePage() {
                                             </tr>
                                         ))}
                                         {problems.length === 0 && (
-                                            <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-500">No problems found</td></tr>
+                                            <tr>
+                                                <td
+                                                    colSpan={4}
+                                                    className="px-6 py-8 text-center text-gray-500"
+                                                >
+                                                    No problems found
+                                                </td>
+                                            </tr>
                                         )}
                                     </tbody>
                                 </table>
@@ -286,7 +419,7 @@ export default function ManagePage() {
                                 <Button
                                     color="primary"
                                     size="sm"
-                                    onClick={() => setShowContestModal(true)}
+                                    onClick={openContestModal}
                                     className="flex items-center gap-2"
                                 >
                                     <Plus size={16} /> Create Contest
@@ -296,25 +429,54 @@ export default function ManagePage() {
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="border-b border-gray-200">
-                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700">Title</th>
-                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700">Start Time</th>
-                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700">Duration</th>
-                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700 text-right">Actions</th>
+                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700">
+                                                Title
+                                            </th>
+                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700">
+                                                Start Time
+                                            </th>
+                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700">
+                                                Duration
+                                            </th>
+                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700 text-right">
+                                                Actions
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-200">
                                         {contests.map((c) => (
-                                            <tr key={c.id} className="hover:bg-gray-50">
-                                                <td className="px-6 py-4 font-medium text-gray-900">{c.title}</td>
+                                            <tr
+                                                key={c.id}
+                                                className="hover:bg-gray-50"
+                                            >
+                                                <td className="px-6 py-4 font-medium text-gray-900">
+                                                    {c.title}
+                                                </td>
                                                 <td className="px-6 py-4 text-sm text-gray-600">
-                                                    {new Date(c.startTime).toLocaleString()}
+                                                    {new Date(
+                                                        c.startTime,
+                                                    ).toLocaleString()}
                                                 </td>
                                                 <td className="px-6 py-4 text-gray-700">
-                                                    {Math.max(0, Math.round((new Date(c.endTime).getTime() - new Date(c.startTime).getTime()) / 60000))} min
+                                                    {Math.max(
+                                                        0,
+                                                        Math.round(
+                                                            (new Date(
+                                                                c.endTime,
+                                                            ).getTime() -
+                                                                new Date(
+                                                                    c.startTime,
+                                                                ).getTime()) /
+                                                                60000,
+                                                        ),
+                                                    )}{" "}
+                                                    min
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
                                                     <button
-                                                        onClick={() => deleteContest(c.id)}
+                                                        onClick={() =>
+                                                            deleteContest(c.id)
+                                                        }
                                                         className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                                                     >
                                                         <Trash2 size={16} />
@@ -323,7 +485,91 @@ export default function ManagePage() {
                                             </tr>
                                         ))}
                                         {contests.length === 0 && (
-                                            <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-500">No contests defined</td></tr>
+                                            <tr>
+                                                <td
+                                                    colSpan={4}
+                                                    className="px-6 py-8 text-center text-gray-500"
+                                                >
+                                                    No contests defined
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Card>
+                    )}
+
+                    {tab === "topics" && (
+                        <Card className="shadow-md">
+                            <CardHeader className="flex flex-row justify-between items-center bg-gray-50 border-b border-gray-200">
+                                <CardTitle>Manage Topics</CardTitle>
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        placeholder="New topic name..."
+                                        value={newTopicName}
+                                        onChange={(e) =>
+                                            setNewTopicName(e.target.value)
+                                        }
+                                        className="h-8 max-w-[200px]"
+                                        onKeyDown={(e) =>
+                                            e.key === "Enter" && createTopic()
+                                        }
+                                    />
+                                    <Button
+                                        color="primary"
+                                        size="sm"
+                                        onClick={createTopic}
+                                        className="flex items-center gap-2 h-8"
+                                    >
+                                        <Plus size={16} /> Add Topic
+                                    </Button>
+                                </div>
+                            </CardHeader>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="border-b border-gray-200">
+                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700">
+                                                Topic Name
+                                            </th>
+                                            <th className="px-6 py-4 text-sm font-semibold text-gray-700 text-right">
+                                                Actions
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200">
+                                        {availableTopics.map((t) => (
+                                            <tr
+                                                key={t.id}
+                                                className="hover:bg-gray-50"
+                                            >
+                                                <td className="px-6 py-4 font-medium text-gray-900">
+                                                    {t.name}
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <button
+                                                        onClick={() =>
+                                                            deleteTopicItem(
+                                                                t.id,
+                                                            )
+                                                        }
+                                                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {availableTopics.length === 0 && (
+                                            <tr>
+                                                <td
+                                                    colSpan={2}
+                                                    className="px-6 py-8 text-center text-gray-500"
+                                                >
+                                                    No topics defined
+                                                </td>
+                                            </tr>
                                         )}
                                     </tbody>
                                 </table>
@@ -339,26 +585,105 @@ export default function ManagePage() {
                     <Card className="w-full max-w-lg border-0 shadow-2xl">
                         <CardHeader className="flex flex-row justify-between items-center border-b border-gray-200">
                             <CardTitle>Create Contest</CardTitle>
-                            <button onClick={() => setShowContestModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                            <button
+                                onClick={closeContestModal}
+                                className="text-gray-400 hover:text-gray-600 transition-colors"
+                            >
                                 <X size={20} />
                             </button>
                         </CardHeader>
                         <CardContent className="pt-6 space-y-4">
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700">Title</label>
-                                <Input value={cTitle} onChange={(e) => setCTitle(e.target.value)} placeholder="Weekly Challenge" className="w-full" />
+                                <label className="text-sm font-medium text-gray-700">
+                                    Title
+                                </label>
+                                <Input
+                                    value={cTitle}
+                                    onChange={(e) => setCTitle(e.target.value)}
+                                    placeholder="Weekly Challenge"
+                                    className="w-full"
+                                />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700">Start Time</label>
-                                <Input type="datetime-local" value={cStart} onChange={(e) => setCStart(e.target.value)} className="w-full" />
+                                <label className="text-sm font-medium text-gray-700">
+                                    Start Time
+                                </label>
+                                <Input
+                                    type="datetime-local"
+                                    value={cStart}
+                                    onChange={(e) => setCStart(e.target.value)}
+                                    className="w-full"
+                                />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700">Duration (min)</label>
-                                <Input type="number" value={cDuration} onChange={(e) => setCDuration(e.target.value)} className="w-full" />
+                                <label className="text-sm font-medium text-gray-700">
+                                    Duration (min)
+                                </label>
+                                <Input
+                                    type="number"
+                                    value={cDuration}
+                                    onChange={(e) =>
+                                        setCDuration(e.target.value)
+                                    }
+                                    className="w-full"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-700">
+                                    Choose Problems
+                                </label>
+                                <div className="border border-gray-200 rounded-lg bg-white max-h-56 overflow-y-auto">
+                                    {problems.length === 0 ? (
+                                        <div className="p-3 text-sm text-gray-500">
+                                            No problems available.
+                                        </div>
+                                    ) : (
+                                        <div className="divide-y divide-gray-100">
+                                            {problems.map((p) => (
+                                                <label
+                                                    key={p.id}
+                                                    className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50"
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        className="h-4 w-4"
+                                                        checked={cProblemIds.includes(
+                                                            p.id,
+                                                        )}
+                                                        onChange={() =>
+                                                            toggleContestProblem(
+                                                                p.id,
+                                                            )
+                                                        }
+                                                    />
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="text-sm font-semibold text-gray-900 truncate">
+                                                            {p.title}
+                                                        </div>
+                                                        <div className="text-xs text-gray-500">
+                                                            {p.difficulty}
+                                                        </div>
+                                                    </div>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                    Selected: {cProblemIds.length}
+                                </div>
                             </div>
                             <div className="flex items-center justify-end gap-3 pt-6">
-                                <Button color="secondary" appearance="outline" onClick={() => setShowContestModal(false)}>Cancel</Button>
-                                <Button color="primary" onClick={createContest}>Create Contest</Button>
+                                <Button
+                                    color="secondary"
+                                    appearance="outline"
+                                    onClick={closeContestModal}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button color="primary" onClick={createContest}>
+                                    Create Contest
+                                </Button>
                             </div>
                         </CardContent>
                     </Card>
@@ -371,26 +696,40 @@ export default function ManagePage() {
                     <Card className="w-full max-w-2xl border-0 shadow-2xl my-8">
                         <CardHeader className="flex flex-row justify-between items-center border-b border-gray-200">
                             <CardTitle>Create New Problem</CardTitle>
-                            <button onClick={() => setShowProblemModal(false)} className="text-gray-400 hover:text-gray-600">
+                            <button
+                                onClick={() => setShowProblemModal(false)}
+                                className="text-gray-400 hover:text-gray-600"
+                            >
                                 <X size={20} />
                             </button>
                         </CardHeader>
                         <CardContent className="pt-6 space-y-4">
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700">Title</label>
-                                <Input value={pTitle} onChange={(e) => setPTitle(e.target.value)} placeholder="Two Sum" className="w-full" />
+                                <label className="text-sm font-medium text-gray-700">
+                                    Title
+                                </label>
+                                <Input
+                                    value={pTitle}
+                                    onChange={(e) => setPTitle(e.target.value)}
+                                    placeholder="Two Sum"
+                                    className="w-full"
+                                />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700">Description (HTML supported)</label>
-                                <textarea 
+                                <label className="text-sm font-medium text-gray-700">
+                                    Description (HTML supported)
+                                </label>
+                                <textarea
                                     className="w-full min-h-[150px] border border-gray-300 rounded-lg p-3 text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
                                     value={pDesc}
                                     onChange={(e) => setPDesc(e.target.value)}
                                 />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700">Difficulty</label>
-                                <select 
+                                <label className="text-sm font-medium text-gray-700">
+                                    Difficulty
+                                </label>
+                                <select
                                     className="w-full border border-gray-300 rounded-lg p-3 text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
                                     value={pDiff}
                                     onChange={(e) => setPDiff(e.target.value)}
@@ -401,26 +740,42 @@ export default function ManagePage() {
                                 </select>
                             </div>
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700">Topics</label>
+                                <label className="text-sm font-medium text-gray-700">
+                                    Topics
+                                </label>
                                 <div className="flex flex-wrap gap-2 pt-1 border border-gray-200 p-3 rounded-lg max-h-[150px] overflow-y-auto bg-gray-50">
-                                    {availableTopics.map(t => (
+                                    {availableTopics.map((t) => (
                                         <button
                                             key={t.id}
                                             onClick={() => toggleTopic(t.id)}
                                             className={`px-3 py-1 rounded-full text-xs font-semibold border ${
-                                                pTopics.includes(t.id) ? "bg-blue-100 border-blue-300 text-blue-800" : "bg-white border-gray-300 text-gray-600 hover:bg-gray-100"
+                                                pTopics.includes(t.id)
+                                                    ? "bg-blue-100 border-blue-300 text-blue-800"
+                                                    : "bg-white border-gray-300 text-gray-600 hover:bg-gray-100"
                                             }`}
                                         >
                                             {t.name}
                                         </button>
                                     ))}
-                                    {availableTopics.length === 0 && <span className="text-sm text-gray-500 p-1">No topics generated yet.</span>}
+                                    {availableTopics.length === 0 && (
+                                        <span className="text-sm text-gray-500 p-1">
+                                            No topics generated yet.
+                                        </span>
+                                    )}
                                 </div>
                             </div>
 
                             <div className="flex items-center justify-end gap-3 pt-6 border-t mt-4">
-                                <Button color="secondary" appearance="outline" onClick={() => setShowProblemModal(false)}>Cancel</Button>
-                                <Button color="primary" onClick={createProblem}>Save Problem</Button>
+                                <Button
+                                    color="secondary"
+                                    appearance="outline"
+                                    onClick={() => setShowProblemModal(false)}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button color="primary" onClick={createProblem}>
+                                    Save Problem
+                                </Button>
                             </div>
                         </CardContent>
                     </Card>
